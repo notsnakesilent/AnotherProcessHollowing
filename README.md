@@ -6,6 +6,10 @@ Explanation and POC of the Process Hollowing (Windows) technique, commonly used 
   <a href="README.md">Readme English</a>
 </p>
 
+A complete explanation of the technique_ES.md its avaliable in <p align="center">
+  <a href="docs/technique_ES.md">Español</a> |
+  <a href="docs/technique_EN.md">English</a>
+</p>
 
 ## 🔍 What is Process Hollowing?
 
@@ -34,11 +38,6 @@ The technique is divided into several critical steps:
 4. **Injection**: Malicious code is written into the freed memory space
 5. **Reconstruction**: Entry point is reconfigured and context restored
 6. **Execution**: The process is resumed, now running the malicious code
-
-A complete explanation its avaliable in <p align="center">
-  <a href="docs/technique_ES.md">Español</a> |
-  <a href="docs/technique_EN.md">English</a>
-</p>
 
 
 ## 📚 Cybersecurity Applications
