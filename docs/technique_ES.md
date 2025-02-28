@@ -1,9 +1,8 @@
 # Antes que nada , debemos comprender lo siguiente
 
-- Trabajaremos con archivos PE de Windows
-
-- Hablaremos de MS-DOS y DOS
-MS-DOS, o Microsoft Disk Operating System, fue un sistema operativo desarrollado por Microsoft para computadoras personales ([Wikipedia](https://es.wikipedia.org/wiki/MS-DOS))
+1. **Trabajaremos con archivos PE de Windows**
+2. **Hablaremos de MS-DOS y DOS**:
+   - MS-DOS, o Microsoft Disk Operating System, fue un sistema operativo desarrollado por Microsoft para computadoras personales ([Wikipedia](https://es.wikipedia.org/wiki/MS-DOS))
 
 _________________________________________________________________________________________________________
 
