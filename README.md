@@ -2,8 +2,8 @@
 
 Explanation and POC of the Process Hollowing (Windows) technique, commonly used by malware to bypass security systems
 <p align="center">
-  <a href="README_ES.md">Español</a> |
-  <a href="README.md">English</a>
+  <a href="README_ES.md">Readme Español</a> |
+  <a href="README.md">Readme English</a>
 </p>
 
 
