@@ -6,6 +6,11 @@ Explicación y prueba de concepto (POC) de la técnica Process Hollowing (Window
   <a href="README.md">Readme English</a>
 </p>
 
+Una explicacion completa de la tecnica esta disponible en <p align="center">
+  <a href="docs/technique_ES.md">Español</a> |
+  <a href="docs/technique_EN.md">English</a>
+</p>
+
 ## 🔍 ¿Qué es Process Hollowing?
 Process Hollowing es una **técnica de evasión** sofisticada ampliamente utilizada por malware moderno para:
 - Ejecutar código malicioso bajo la apariencia de procesos legítimos
