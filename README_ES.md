@@ -2,8 +2,8 @@
 
 Explicación y prueba de concepto (POC) de la técnica Process Hollowing (Windows), comúnmente utilizada por malware para evadir sistemas de seguridad
 <p align="center">
-  <a href="README_ES.md">Español</a> |
-  <a href="README.md">English</a>
+  <a href="README_ES.md">Readme Español</a> |
+  <a href="README.md">Readme English</a>
 </p>
 
 ## 🔍 ¿Qué es Process Hollowing?
@@ -27,7 +27,13 @@ La técnica se divide en varios pasos críticos:
 4. **Inyección**: Se escribe código malicioso en el espacio de memoria liberado
 5. **Reconstrucción**: Se reconfigura el punto de entrada y se restaura el contexto
 6. **Ejecución**: El proceso se reanuda, ahora ejecutando el código malicioso
-   
+
+Una explicacion completa esta disponible en <p align="center">
+  <a href="docs/technique_ES.md">Español</a> |
+  <a href="docs/technique_EN.md">English</a>
+</p>
+
+
 ## 📚 Aplicaciones en Ciberseguridad
 - **Investigación de malware**: Entender cómo operan las amenazas avanzadas
 - **Pruebas de penetración**: Evaluar defensas contra técnicas de evasión
