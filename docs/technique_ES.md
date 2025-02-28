@@ -1,26 +1,29 @@
-# Antes que nada , debemos comprender lo siguiente
+# Antes que nada , debemos saber lo siguiente
 
 1. **Trabajaremos con archivos PE de Windows**
 2. **Hablaremos de MS-DOS y DOS**:
    - MS-DOS, o Microsoft Disk Operating System, fue un sistema operativo desarrollado por Microsoft para computadoras personales ([Wikipedia](https://es.wikipedia.org/wiki/MS-DOS))
-
+3. **Hablaremos de Arquitecturas de 32 y 64 bits**
 _________________________________________________________________________________________________________
 
-Primer Paso: Comprender los PE files
-Portable Executable (PE) es un formato de archivo para archivos ejecutables, de código objeto, bibliotecas de enlace dinámico (DLL), archivos de fuentes FON​ y otros usados en versiones de 32 bit y 64 bit del sistema operativo Microsoft Windows segun Wikipedia
+Portable Executable (PE) es un formato de archivo para archivos ejecutables, de código objeto, bibliotecas de enlace dinámico (DLL), archivos de fuentes FON​ y otros usados en versiones de 32 bit y 64 bit del sistema operativo Microsoft Windows segun Wikipedia.
+
 Estos archivos contienen una estructura que deberemos entender perfectamente para entender esta tecnica:
 
-![image](https://github.com/user-attachments/assets/a45643a9-ecc8-4933-899a-dda9781e5931)
-A continuacion , procederemos a explicar cada uno
+![image](https://github.com/user-attachments/assets/6bff7db8-1895-432d-8915-8d0be11a8608)
 
-###Encabezado DOS
-Este encabezado es una estructura de 64 bits que existe al principio de todos los PE Files, Este no es importante en sistemas Windows modernos pero se sigue incluyendo por razones de compatibilidad con versiones anteriores.
+
+## Dos Header
+Este encabezado es una estructura de 64 bits que existe al principio de todos los PE Files, este no es importante en sistemas Windows modernos pero se sigue incluyendo por razones de compatibilidad con versiones anteriores.
+
 Esta cabecera convierte el archivo en un ejecutable MS-DOS, de modo que cuando se carga en MS-DOS se ejecuta el stub DOS en lugar del programa real.
-Sin esta cabecera, si intenta cargar el ejecutable en MS-DOS no se cargará y sólo producirá un error genérico.
 
-##Estructura
+Sin esta cabecera, si se intenta cargar el ejecutable en MS-DOS no se cargará y sólo producirá un error genérico.
+
+### Estructura
 ![image](https://github.com/user-attachments/assets/4eb708c2-d37d-4e26-979a-bc24c1c5172c)
-Esta estructura es importante para el cargador PE en MS-DOS, sin embargo sólo unos pocos miembros de la misma son importantes para el cargador PE en sistemas Windows, por lo que no vamos a cubrir todo aquí, sólo los miembros importantes de la estructura.
+
+Esta estructura es importante para el cargador PE en MS-DOS, sin embargo sólo unos pocos miembros de la misma son importantes para el cargador PE en sistemas Windows, por lo que no vamos a ver todo , sólo los miembros importantes de la estructura.
 
 * e_magic: Es el primer miembro de la Cabecera DOS, es un WORD por lo que ocupa 2 bytes, se le suele llamar número mágico. Tiene un valor fijo de 0x5A4D o MZ en ASCII, y sirve como firma que marca el fichero como ejecutable MS-DOS.
 * e_lfanew: Este es el último miembro de la estructura de cabecera del DOS, se encuentra en el offset 0x3C dentro de la cabecera del DOS y contiene un offset al inicio de las cabeceras NT. Este miembro es importante para el cargador PE en sistemas Windows porque le dice al cargador dónde buscar la cabecera del archivo.
@@ -28,18 +31,53 @@ Esta estructura es importante para el cargador PE en MS-DOS, sin embargo sólo u
 ![image](https://github.com/user-attachments/assets/669dcc0d-c8ef-4114-87a0-ea86c9c902b3)
 
 Como puedes ver, el primer miembro de la cabecera es el número mágico con el valor fijo del que hablamos que era 5A4D.
+
 El último miembro de la cabecera (en el offset 0x3C) recibe el nombre de «File address of new exe header», tiene el valor 100, podemos seguir hasta ese offset y encontraremos el inicio de las cabeceras NT como era de esperar:
 
-###Dos Stub
+## Dos Stub
 El stub de DOS es un programa de MS-DOS que imprime un mensaje de error diciendo que el ejecutable no es compatible con DOS y luego sale.
+
 Esto es lo que se ejecuta cuando el programa se carga en MS-DOS, el mensaje de error por defecto es «Este programa no puede ejecutarse en modo DOS», sin embargo este mensaje puede ser cambiado por el usuario durante el tiempo de compilación.
 
-Eso es todo lo que necesitamos saber sobre el stub DOS, realmente no nos importa, pero echemos un vistazo a lo que hace.
+Eso es todo lo que necesitamos saber sobre el stub DOS, realmente no nos importa, pero puede hacer mucho mas.
 
+![image](https://github.com/user-attachments/assets/d150b7bc-2e5c-4962-8b66-c38b3404cc00)
 
+## Rich Header
 
+Ya hemos visto la DOS Header y el DOS Stub, sin embargo, todavía hay una porción de datos de la que no hemos hablado que se encuentra entre el DOS Stub y el comienzo de las NT Headers.
 
+![image](https://github.com/user-attachments/assets/e47cc815-c860-438f-b392-e93879f6b238)
 
+Esta porción de datos se denomina comúnmente Rich Header, y es una estructura no documentada que sólo está presente en los ejecutables creados con el conjunto de herramientas Microsoft Visual Studio.
+
+Se considera una función no documentada y Microsoft nunca ha revelado públicamente su propósito exacto, pero los investigadores y desarrolladores de malware han encontrado formas de conocerla y también de aprovecharse de ella.
+
+El Rich Header consiste en:
+
+- Un montón de datos de tipo XOR
+- La palabra clave "Rich"
+- Una clave XOR (checksum) que puede utilizarse para descifrar la primera parte de la cabecera
+
+Realmente para lo que vamos a hacer no nos interesa, pero es parte de los PE Files
+
+## NT Header
+Los NT-Headers son una parte importante de los ejecutables portables. Contienen una gran cantidad de información sobre el PE File.
+
+Existen dos versiones de la estructura dependiendo de la arquitectura (32 bits o 64 bits). En cualquier caso, la estructura tiene tres elementos: una firma, un encabezado de archivo (IMAGE_FILE_HEADER) y un encabezado opcional (IMAGE_OPTIONAL_HEADER).
+
+### Encabezado de archivo (IMAGE_FILE_HEADER)
+![image](https://github.com/user-attachments/assets/76b0abe1-4ad6-4918-883f-f0140126310b)
+
+   - Machine: Indica para que maquina el archivo esta compilado
+   - Number of Sections: Indica la cantidad de secciones (ya trataremos esto mas adelante) que contiene el archivo
+   - TimeDateStamp: Indica la fecha y hora de compilacion
+   - PointerToSymbolTable: Contiene el offset del fichero de la tabla de símbolos
+   - NumberOfSymbols: Cantidad de simbolos de la tabla de simbolos
+   - SizeOfOptionalHeader: Especifica el tamaño de la cabecera opcional, en bytes. La cabecera opcional sigue a la cabecera del archivo y contiene información adicional sobre el archivo PE
+   - Characteristics: Este campo proporciona banderas que indican ciertos atributos del archivo PE, incluyendo si se trata de un ejecutable, una DLL, un archivo de sistema, y varios otros
+
+     
 ### 1. Cabeceras y Definiciones de Tipos Requeridas
 
 ```cpp
