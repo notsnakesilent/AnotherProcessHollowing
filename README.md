@@ -1,4 +1,4 @@
-# 🛡️ Another Process Hollowing
+# 🛡Another Process Hollowing
 
 Explanation and POC of the Process Hollowing (Windows) technique, commonly used by malware to bypass security systems
 <p align="center">
@@ -21,9 +21,8 @@ Process Hollowing is a sophisticated **evasion technique** widely used by modern
 
 This repository contains:
 
-- **Detailed explanation** of the Process Hollowing technique
+- **Detailed explanation** of the Process Hollowing technique (English and Spanish)
 - **Complete source code** for a Proof of Concept (PoC)
-- **Bilingual documentation** (English and Spanish)
 
 ## 🔧 How It Works
 
