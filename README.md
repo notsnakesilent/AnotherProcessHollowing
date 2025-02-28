@@ -35,6 +35,12 @@ The technique is divided into several critical steps:
 5. **Reconstruction**: Entry point is reconfigured and context restored
 6. **Execution**: The process is resumed, now running the malicious code
 
+A complete explanation its avaliable in <p align="center">
+  <a href="docs/technique_ES.md">Español</a> |
+  <a href="docs/technique_EN.md">English</a>
+</p>
+
+
 ## 📚 Cybersecurity Applications
 
 - **Malware research**: Understanding how advanced threats operate
