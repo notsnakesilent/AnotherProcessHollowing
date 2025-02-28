@@ -6,7 +6,7 @@ Explanation and POC of the Process Hollowing (Windows) technique, commonly used 
   <a href="README.md">Readme English</a>
 </p>
 
-A complete explanation of the technique_ES.md its avaliable in <p align="center">
+A complete explanation of the technique its avaliable in <p align="center">
   <a href="docs/technique_ES.md">Español</a> |
   <a href="docs/technique_EN.md">English</a>
 </p>
