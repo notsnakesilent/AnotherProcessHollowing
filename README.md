@@ -1,4 +1,4 @@
-# Another Process Hollowing
+# AnotherProcessHollowing
 Explanation and POC of the Process Hollowing (Windows) technique, commonly used by malware to bypass security systems
 
 A complete explanation of the technique is available in 
